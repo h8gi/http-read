@@ -1,1 +1,19 @@
 * http-read
+simple http client
+
+** usage
+
+=(http-read url #!key (header '()) (method GET) (query '()) (body (lambda () (display ""))))=
+
+=(response-body <respone>)=
+
+=(response-header <response>)=
+
+** example
+
+#+BEGIN_SRC scheme
+  (with-output-to-file "index.html"
+    (lambda ()
+      (display
+       (response-body (http-read "http://www.h8gi.com")))))
+#+END_SRC
