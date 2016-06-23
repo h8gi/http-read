@@ -9,6 +9,9 @@ simple http client
 
 =(response-header <response>)=
 
+Response header is an alist of which key is downcased symbol(e.g. content-length).
+
+
 ** example
 
 #+BEGIN_SRC scheme
