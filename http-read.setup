@@ -1,0 +1,11 @@
+;;; http-read.setup
+
+;;; コンパイル
+(compile -s -O3 -d1 "http-read.scm" -j http-read)
+(compile -s -O3 -d0 "http-read.import.scm")
+
+;;; インストール
+(install-extension
+ 'http-read
+ '("http-read.so" "http-read.import.so")
+ '((version 1.0)))
