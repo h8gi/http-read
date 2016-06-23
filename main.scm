@@ -1,7 +1,7 @@
 (use tcp6 openssl uri-common)
 (define http-read-debug (make-parameter #f))
 (set! char-set:uri-unreserved
-  (list->char-set '(#\- #\. #\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\A #\B #\C #\D #\E #\F #\G #\H #\I #\J #\K #\L #\M #\N #\O #\P #\Q #\R #\S #\T #\U #\V #\W #\X #\Y #\Z #\_ #\a #\b #\c #\d #\e #\f #\g #\h #\i #\j #\k #\l #\m #\n #\o #\p #\q #\r #\s #\t #\u #\v #\w #\x #\y #\z #\~)))
+  (string->char-set "-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~"))
 ;;; uri = (uri-reference str)
 (define (connect-to-server uri)
   (let ([host (uri-host uri)]
@@ -93,9 +93,6 @@
                 (if m (cons m acc) (cons (cons 'status line) acc)))))))
 
 (define (process-body header-alst #!optional (in (current-input-port)))
-  ;; (let* ([len (or (alist-ref 'content-length header-alst) "0")]
-  ;;        [len (or (string->number len) 0)])
-  ;;   (read-string len in))
   (cond
    ;; content-length
    [(alist-ref 'content-length header-alst) =>
