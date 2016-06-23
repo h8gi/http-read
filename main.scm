@@ -101,11 +101,11 @@
    [(alist-ref 'content-length header-alst) =>
     (lambda (len-str)
       (read-string (or (string->number len-str) 0) in))]
+   ;; transfer-encoding: chunked
    [(and (alist-ref 'transfer-encoding header-alst)
          (string-ci= (alist-ref 'transfer-encoding header-alst) "chunked"))
     (with-output-to-string
-        (lambda () (process-chunked-body in)))
-    ]
+        (lambda () (process-chunked-body in)))]
    [else ""]))
 
 (define (process-chunked-body #!optional (in (current-input-port)))
