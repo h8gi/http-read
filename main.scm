@@ -23,12 +23,17 @@
                    (header '())
                    (method "GET")
                    (query '()))
-  (let ([uri (if (uri? uri-or-str) uri-or-str (uri-reference uri-or-str))])
+  (let* ([uri (if (uri? uri-or-str) uri-or-str (uri-reference uri-or-str))]
+         [path (uri->string (make-uri #:path (uri-path uri)))]
+         [query (append (uri-query uri) query)]
+         [path (if (null? query) path
+                   (string-append path
+                                  "?"
+                                  (form-urlencode query #:separator (char-set #\&))))])
     (receive (in out) (connect-to-server uri)
       (dynamic-wind
         (lambda ()
-          (send-request (uri->string (make-uri #:path (uri-path uri)
-                                               #:query (append (uri-query uri) query)))
+          (send-request path
                         (cons (cons 'Host (uri-host uri)) header)
                         body
                         #:method method
@@ -88,9 +93,30 @@
                 (if m (cons m acc) (cons (cons 'status line) acc)))))))
 
 (define (process-body header-alst #!optional (in (current-input-port)))
-  (let* ([len (or (alist-ref 'content-length header-alst) "0")]
-         [len (or (string->number len) 0)])
-    (read-string len in)))
+  ;; (let* ([len (or (alist-ref 'content-length header-alst) "0")]
+  ;;        [len (or (string->number len) 0)])
+  ;;   (read-string len in))
+  (cond
+   ;; content-length
+   [(alist-ref 'content-length header-alst) =>
+    (lambda (len-str)
+      (read-string (or (string->number len-str) 0) in))]
+   [(and (alist-ref 'transfer-encoding header-alst)
+         (string-ci= (alist-ref 'transfer-encoding header-alst) "chunked"))
+    (with-output-to-string
+        (lambda () (process-chunked-body in)))
+    ]
+   [else ""]))
+
+(define (process-chunked-body #!optional (in (current-input-port)))
+  (define (inner)
+    (let* ([line (read-line in)]
+           [num (string->number line 16)])
+      (unless (zero? num)
+        (display (read-string num in))
+        (read-line in)                  ; eat newline
+        (inner))))
+  (inner))
 
 (define-record response status header body)
 (define (get-response #!optional (in (current-input-port)))
