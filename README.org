@@ -5,11 +5,14 @@ simple http client
 
 =(http-read url #!key (header '()) (method GET) (query '()) (body (lambda () (display "")))) -> <response>=
 
-=(response-body <respone>)=
+=(response-status <response>)=
+Response status is a pair of status-code and response-phrase. (e.g. '(200 . "OK"))
 
 =(response-header <response>)=
 
-Response header is an alist of which key is downcased symbol(e.g. content-length).
+Response header is an alist of which key is downcased symbol. (e.g. content-length)
+
+=(response-body <respone>)=
 
 
 ** example
