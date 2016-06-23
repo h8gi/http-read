@@ -9,7 +9,7 @@
         [port (uri-port uri)])
     (receive (i o)
         (case scheme
-          [(http) (tcp-connect host port)]
+          [(http #f) (tcp-connect host port)]
           [(https) (ssl-connect host port)])
       (if (and i o) (values i o)
           (error 'connect-to-server uri)))))
