@@ -1,15 +1,16 @@
 * http-read
 simple http client
+If you want a stricter client, user [[http://wiki.call-cc.org/eggref/4/http-client][http-client]].
 
 ** usage
 
 =(http-read url #!key (header '()) (method GET) (query '()) (body (lambda () (display "")))) -> <response>=
+header is an alist.
 
 =(response-status <response>)=
 Response status is a pair of status-code and response-phrase. (e.g. '(200 . "OK"))
 
 =(response-header <response>)=
-
 Response header is an alist of which key is downcased symbol. (e.g. content-length)
 
 =(response-body <respone>)=
@@ -18,8 +19,15 @@ Response header is an alist of which key is downcased symbol. (e.g. content-leng
 ** example
 
 #+BEGIN_SRC scheme
-  (with-output-to-file "index.html"
+  (define result
+    (http-read "https://www.google.co.jp/search"
+               #:query '((q . "日本語")
+                         (ie . "UTF-8")
+                         (oe . "UTF-8")
+                         (num . 20))
+               #:header '((User-Agent . "http-read"))))
+
+  (with-output-to-file "test.html"
     (lambda ()
-      (display
-       (response-body (http-read "http://www.h8gi.com")))))
+      (display (response-body result))))
 #+END_SRC
