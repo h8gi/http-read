@@ -28,7 +28,7 @@
       (dynamic-wind
         (lambda ()
           (send-request (uri->string (make-uri #:path (uri-path uri)
-                                               #:query query))
+                                               #:query (append (uri-query uri) query)))
                         (cons (cons 'Host (uri-host uri)) header)
                         body
                         #:method method
