@@ -93,16 +93,16 @@
                 (if m (cons m acc) (cons (cons 'status line) acc)))))))
 
 (define (process-body header-alst #!optional (in (current-input-port)))
-  (cond
-   ;; content-length
-   [(alist-ref 'content-length header-alst) =>
-    (lambda (len-str)
-      (read-string (or (string->number len-str) 0) in))]
+  (cond   
    ;; transfer-encoding: chunked
    [(and (alist-ref 'transfer-encoding header-alst)
          (string-ci= (alist-ref 'transfer-encoding header-alst) "chunked"))
     (with-output-to-string
         (lambda () (process-chunked-body in)))]
+   ;; content-length
+   [(alist-ref 'content-length header-alst) =>
+    (lambda (len-str)
+      (read-string (or (string->number len-str) 0) in))]
    [else ""]))
 
 (define (process-chunked-body #!optional (in (current-input-port)))
