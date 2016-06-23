@@ -3,7 +3,7 @@ simple http client
 
 ** usage
 
-=(http-read url #!key (header '()) (method GET) (query '()) (body (lambda () (display ""))))=
+=(http-read url #!key (header '()) (method GET) (query '()) (body (lambda () (display "")))) -> <response>=
 
 =(response-body <respone>)=
 
