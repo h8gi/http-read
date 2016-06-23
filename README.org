@@ -1,17 +1,20 @@
 #+OPTIONS: \n:t
 * http-read
-simple http client
+simple http client.
 If you want a stricter client, user [[http://wiki.call-cc.org/eggref/4/http-client][http-client]].
 
 ** usage
 
 =(http-read url #!key (header '()) (method GET) (query '()) (body (lambda () (display "")))) -> <response>=
+
 header is an alist.
 
 =(response-status <response>)=
+
 Response status is a pair of status-code and response-phrase. (e.g. '(200 . "OK"))
 
 =(response-header <response>)=
+
 Response header is an alist of which key is downcased symbol. (e.g. content-length)
 
 =(response-body <respone>)=
