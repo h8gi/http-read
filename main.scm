@@ -99,9 +99,8 @@
          [status (string-trim-both status)]
          [mch (irregex-match  ".+?[[:space:]]+(\\d+)[[:space:]]+(.+)" status)]
          [status-num (if mch (string->number (irregex-match-substring mch 1)) #f)]
-         [status-sym (if mch (string->symbol
-                              (string-downcase (irregex-match-substring mch 2))) #f)]
-         [status (cons status-sym status-num)]
+         [status-sym (if mch (irregex-match-substring mch 2) "")]
+         [status (cons status-num status-sym)]
          [header-alst (alist-delete 'status header-alst)]
          [body (process-body header-alst in)])
     (make-response status header-alst body)))
