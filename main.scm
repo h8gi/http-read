@@ -9,7 +9,7 @@
         [port (uri-port uri)])
     (receive (i o)
         (case scheme
-          [(http #f) (tcp-connect host port)]
+          [(http) (tcp-connect host port)]
           [(https) (ssl-connect host port)])
       (if (and i o) (values i o)
           (error 'connect-to-server uri)))))
@@ -23,7 +23,12 @@
                    (header '())
                    (method "GET")
                    (query '()))
-  (let* ([uri (if (uri? uri-or-str) uri-or-str (uri-reference uri-or-str))]
+  (let* ([uri (if (uri? uri-or-str)
+		  uri-or-str
+		  (uri-reference uri-or-str))]
+	 [uri (if (and (not (uri-scheme uri)) (string? uri-or-str))
+		  (uri-reference (string-append "http://" uri-or-str))
+		  uri)]
          [path (uri->string (make-uri #:path (uri-path uri)))]
          [query (append (uri-query uri) query)]
          [path (if (null? query) path
