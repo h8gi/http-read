@@ -85,7 +85,7 @@
         (reverse! acc)
         (let ([m (parse-line line)])
           (loop (read-line in)
-                (if m (cons m acc) (cons (cons 'first-line line) acc)))))))
+                (if m (cons m acc) (cons (cons 'status line) acc)))))))
 
 (define (process-body header-alst #!optional (in (current-input-port)))
   (let* ([len (or (alist-ref 'content-length header-alst) "0")]
