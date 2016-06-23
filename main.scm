@@ -1,5 +1,5 @@
 (use tcp6 openssl uri-common)
-(define client-debug (make-parameter #f))
+(define http-read-debug (make-parameter #f))
 (set! char-set:uri-unreserved
   (list->char-set '(#\- #\. #\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\A #\B #\C #\D #\E #\F #\G #\H #\I #\J #\K #\L #\M #\N #\O #\P #\Q #\R #\S #\T #\U #\V #\W #\X #\Y #\Z #\_ #\a #\b #\c #\d #\e #\f #\g #\h #\i #\j #\k #\l #\m #\n #\o #\p #\q #\r #\s #\t #\u #\v #\w #\x #\y #\z #\~)))
 ;;; uri = (uri-reference str)
@@ -58,7 +58,7 @@
                       #!key
                       (port (current-output-port))
                       (method "GET"))
-  (when (client-debug)
+  (when (http-read-debug)
     (printf "~A ~A HTTP/1.1~%" method path-str)
     (display-header header-alst)
     (body-thunk))
