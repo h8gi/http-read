@@ -34,12 +34,18 @@
          [path (if (null? query) path
                    (string-append path
                                   "?"
-                                  (form-urlencode query #:separator (char-set #\&))))])
+                                  (form-urlencode query #:separator (char-set #\&))))]
+	 [header (if (alist-ci-ref 'host header)
+		     header
+		     (alist-update 'host (uri-host uri) header))]
+	 [header (if (alist-ci-ref 'user-agent header)
+		     header
+		     (alist-update 'user-agent "http-read" header))])
     (receive (in out) (connect-to-server uri)
       (dynamic-wind
         (lambda ()
           (send-request path
-                        (cons (cons 'Host (uri-host uri)) header)
+                        header
                         body
                         #:method method
                         #:port out))
@@ -49,6 +55,10 @@
           (close-input-port in)
           (close-output-port out))))))
 
+(define (alist-ci-ref key header)
+  (alist-ref key header (lambda (x y)
+			  (string-ci= (->string x)
+				      (->string y)))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; send request
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
