@@ -35,10 +35,10 @@
                    (string-append path
                                   "?"
                                   (form-urlencode query #:separator (char-set #\&))))]
-	 [header (if (alist-ci-ref 'host header)
+	 [header (if (header-ref 'host header)
 		     header
 		     (alist-update 'host (uri-host uri) header))]
-	 [header (if (alist-ci-ref 'user-agent header)
+	 [header (if (header-ref 'user-agent header)
 		     header
 		     (alist-update 'user-agent "http-read" header))])
     (receive (in out) (connect-to-server uri)
@@ -55,7 +55,7 @@
           (close-input-port in)
           (close-output-port out))))))
 
-(define (alist-ci-ref key header)
+(define (header-ref key header)
   (alist-ref key header (lambda (x y)
 			  (string-ci= (->string x)
 				      (->string y)))))
@@ -98,7 +98,7 @@
         #f)))
 
 ;;; ->alist
-(define (process-header #!optional (in (current-input-port)))
+(define (read-header #!optional (in (current-input-port)))
   (let loop ([line (read-line in)]
              [acc '()])
     (if (or (irregex-match '(* space) line) (eof-object? line))
@@ -107,32 +107,32 @@
           (loop (read-line in)
                 (if m (cons m acc) (cons (cons 'status line) acc)))))))
 
-(define (process-body header-alst #!optional (in (current-input-port)))
+(define (read-body header-alst #!optional (in (current-input-port)))
   (cond   
    ;; transfer-encoding: chunked
    [(and (alist-ref 'transfer-encoding header-alst)
          (string-ci= (alist-ref 'transfer-encoding header-alst) "chunked"))
-    (with-output-to-string
-        (lambda () (process-chunked-body in)))]
+    (read-chunked-body in)]
    ;; content-length
    [(alist-ref 'content-length header-alst) =>
     (lambda (len-str)
       (read-string (or (string->number len-str) 0) in))]
    [else ""]))
 
-(define (process-chunked-body #!optional (in (current-input-port)))
+(define (read-chunked-body #!optional (in (current-input-port)))
   (define (inner)
     (let* ([line (read-line in)]
            [num (string->number line 16)])
-      (unless (zero? num)
+      (when (> num 0)	
         (display (read-string num in))
         (read-line in)                  ; eat newline
         (inner))))
-  (inner))
+  (with-output-to-string inner))
 
 (define-record response status header body)
+
 (define (get-response #!optional (in (current-input-port)))
-  (let* ([header-alst (process-header in)]
+  (let* ([header-alst (read-header in)]
          [status (alist-ref 'status header-alst)]
          [status (string-trim-both status)]
          [mch (irregex-match  ".+?[[:space:]]+(\\d+)[[:space:]]+(.+)" status)]
@@ -140,5 +140,5 @@
          [status-sym (if mch (irregex-match-substring mch 2) "")]
          [status (cons status-num status-sym)]
          [header-alst (alist-delete 'status header-alst)]
-         [body (process-body header-alst in)])
+         [body (read-body header-alst in)])
     (make-response status header-alst body)))
