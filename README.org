@@ -5,9 +5,9 @@ If you want a stricter client, user [[http://wiki.call-cc.org/eggref/4/http-clie
 
 ** usage
 
-=(http-read url #!key (header '()) (method GET) (query '()) (body (lambda () (display "")))) -> <response>=
+=(http-read url #!key (header '()) (method 'get) (query '())) -> <response>=
 
-header is an alist.
+Header is an alist. Method is 'get or 'post.
 
 =(response-status <response>)=
 

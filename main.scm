@@ -19,7 +19,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define (http-read uri-or-str 
                    #!key
-                   (body (lambda () (display "")))
                    (header '())
                    (method 'get)
                    (query '()))
@@ -36,10 +35,12 @@
                                   "?"
                                   (form-urlencode query #:separator (char-set #\&))))]
 	 [body (if (eq? method 'post)
-		   (lambda ()
-		     (display
-		      (form-urlencode query #:separator (char-set #\&))))
-		   body)]
+		   (form-urlencode query #:separator (char-set #\&))
+		   "")]
+	 [content-length (string-length body)]
+	 [header (if (eq? method 'post)
+		     (alist-update 'content-length content-length header)
+		     header)]
 	 [header (if (header-ref 'host header)
 		     header
 		     (alist-update 'host (uri-host uri) header))]
@@ -79,19 +80,19 @@
                 header-alst)
       (newline))))
 
-(define (send-request path-str header-alst body-thunk
+(define (send-request path-str header-alst body
                       #!key
                       (port (current-output-port))
                       (method "GET"))
   (when (http-read-debug)
     (printf "~A ~A HTTP/1.1~%" method path-str)
     (display-header header-alst)
-    (body-thunk))
+    (display body))
   (with-output-to-port port
     (lambda ()
       (printf "~A ~A HTTP/1.1~%" method path-str)
       (display-header header-alst)
-      (body-thunk))))
+      (display body))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; read response
