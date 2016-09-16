@@ -21,7 +21,7 @@
                    #!key
                    (body (lambda () (display "")))
                    (header '())
-                   (method "GET")
+                   (method 'get)
                    (query '()))
   (let* ([uri (if (uri? uri-or-str)
 		  uri-or-str
@@ -31,10 +31,15 @@
 		  uri)]
          [path (uri->string (make-uri #:path (uri-path uri)))]
          [query (append (uri-query uri) query)]
-         [path (if (null? query) path
+         [path (if (or (null? query) (eq? method 'post)) path
                    (string-append path
                                   "?"
                                   (form-urlencode query #:separator (char-set #\&))))]
+	 [body (if (eq? method 'post)
+		   (lambda ()
+		     (display
+		      (form-urlencode query #:separator (char-set #\&))))
+		   body)]
 	 [header (if (header-ref 'host header)
 		     header
 		     (alist-update 'host (uri-host uri) header))]
