@@ -83,7 +83,7 @@
 (define (send-request path-str header-alst body
                       #!key
                       (port (current-output-port))
-                      (method "GET"))
+                      method)
   (when (http-read-debug)
     (printf "~A ~A HTTP/1.1~%" method path-str)
     (display-header header-alst)
