@@ -63,7 +63,7 @@
 		   (header-update 'content-length content-length header)
 		   uri))])
     (process-server uri path header body method)))
-
+;;; get, head, delete
 (define (http-get/head/delete uri
 			      header 
 			      method
