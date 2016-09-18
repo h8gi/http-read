@@ -1,7 +1,7 @@
 #+OPTIONS: \n:t
 * http-read
 simple http client.
-If you want a stricter client, user [[http://wiki.call-cc.org/eggref/4/http-client][http-client]].
+If you want a more rich client, user [[http://wiki.call-cc.org/eggref/4/http-client][http-client]].
 
 ** usage
 
