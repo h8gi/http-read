@@ -1,5 +1,6 @@
 (use tcp6 openssl uri-common)
 (define http-read-debug (make-parameter #f))
+(define user-agent-name "http-read v1.0")
 (set! char-set:uri-unreserved
   (string->char-set "-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~"))
 ;;; uri = (uri-reference str)
@@ -14,6 +15,21 @@
       (if (and i o) (values i o)
           (error 'connect-to-server uri)))))
 
+(define (process-server uri path header body method)
+  (receive (in out) (connect-to-server uri)
+    (dynamic-wind
+	(lambda ()
+	  (send-request path
+			header
+			body
+			#:method method
+			#:port out))
+	(lambda ()
+	  (get-response in (eq? method 'head)))
+	(lambda ()
+	    (close-input-port in)
+	    (close-output-port out)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; all
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -22,48 +38,72 @@
                    (header '())
                    (method 'get)
                    (query '()))
-  (let* ([uri (if (uri? uri-or-str)
-		  uri-or-str
-		  (uri-reference uri-or-str))]
-	 [uri (if (and (not (uri-scheme uri)) (string? uri-or-str))
-		  (uri-reference (string-append "http://" uri-or-str))
-		  uri)]
-         [path (uri->string (make-uri #:path (uri-path uri)))]
+  (let ([uri (trim-uri-or-str uri-or-str)])
+    ((case method
+	[(get head delete) http-get/head/delete]
+	[(put post) http-post/put]
+	[else (error "method must be (get head delete put post)" method)])
+     uri header method query)))
+
+;;; put, post
+(define (http-post/put uri
+		       header
+		       method 
+		       query)
+  (let* ([path (uri->string (make-uri #:path (uri-path uri)))]
+         [path-query (uri-query uri)]
+	 [path (if (null? path-query) path
+                   (string-append path
+                                  "?"
+                                  (form-urlencode path-query #:separator (char-set #\&))))]
+	 [body (or (form-urlencode query #:separator (char-set #\&)) "")]
+	 [content-length (string-length body)]
+	 [header (add-ua-to-header
+		  (add-host-to-header
+		   (header-update 'content-length content-length header)
+		   uri))])
+    (process-server uri path header body method)))
+
+(define (http-get/head/delete uri
+			      header 
+			      method
+			      query)
+  (let* ([path (uri->string (make-uri #:path (uri-path uri)))]
          [query (append (uri-query uri) query)]
-         [path (if (or (null? query) (eq? method 'post)) path
+         [path (if (null? query) path
                    (string-append path
                                   "?"
                                   (form-urlencode query #:separator (char-set #\&))))]
-	 [body (or (form-urlencode query #:separator (char-set #\&))
-		   "")]
-	 [content-length (string-length body)]
-	 [header (if (eq? method 'post)
-		     (alist-update 'content-length content-length header)
-		     header)]
-	 [header (if (header-ref 'host header)
-		     header
-		     (alist-update 'host (uri-host uri) header))]
-	 [header (if (header-ref 'user-agent header)
-		     header
-		     (alist-update 'user-agent "http-read" header))])
-    (receive (in out) (connect-to-server uri)
-      (dynamic-wind
-        (lambda ()
-          (send-request path
-                        header
-                        body
-                        #:method method
-                        #:port out))
-        (lambda ()
-          (get-response in))
-        (lambda ()
-          (close-input-port in)
-          (close-output-port out))))))
+	 [header (add-ua-to-header (add-host-to-header header uri))])
+    (process-server uri path header "" method)))
+
+(define (add-host-to-header header abs-uri)
+  (cond [(header-ref 'host header) header]
+	[else (header-update 'host (uri-host abs-uri) header)]))
+
+(define (add-ua-to-header header)
+  (if (header-ref 'user-agent header) header
+      (header-update 'user-agent user-agent-name header)))
+
+(define (trim-uri-or-str uri-or-str)
+  (let ([uri (if (uri? uri-or-str) uri-or-str
+		 (uri-reference uri-or-str))])
+    (cond [(absolute-uri? uri) uri]
+	  [(string? uri-or-str) (uri-reference (string-append "http://" uri-or-str))]
+	  [else (error "Malformed uri" uri-or-str)])))
+
+(define (uri-path-string uri)
+  (uri->string (make-uri #:path (uri-path uri))))
 
 (define (header-ref key header)
   (alist-ref key header (lambda (x y)
 			  (string-ci= (->string x)
 				      (->string y)))))
+
+(define (header-update key value header)
+  (alist-update key value header (lambda (x y)
+				   (string-ci= (->string x)
+					       (->string y)))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; send request
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -79,17 +119,35 @@
                 header-alst)
       (newline))))
 
+(define (display-debug-header header-alst #!optional (out (current-output-port)))
+  (with-output-to-port out
+    (lambda ()
+      (for-each (lambda (lst)
+                  (printf "> ~A: " (car lst))
+                  (if (list? (cdr lst))
+                      (for-each (cut printf "~A " <>) (cdr lst))
+                      (printf "~A" (cdr lst)))
+                  (newline))
+                header-alst)
+      (display ">\n"))))
+
+(define (display-request-line method path-str)
+  (printf "~A ~A HTTP/1.1~%" (string-upcase (->string method)) path-str))
+
 (define (send-request path-str header-alst body
                       #!key
                       (port (current-output-port))
                       method)
   (when (http-read-debug)
-    (display "> ") (printf "~A ~A HTTP/1.1~%" method path-str)
-    (display "> ") (display-header header-alst)
-    (display body))
+    (with-output-to-port (current-error-port)
+      (lambda ()
+	(display "> ") (display-request-line method path-str)
+	(display-debug-header header-alst)
+	(display "> ") (display body)
+	(newline))))
   (with-output-to-port port
     (lambda ()
-      (printf "~A ~A HTTP/1.1~%" (string-upcase (->string method)) path-str)
+      (display-request-line method path-str)
       (display-header header-alst)
       (display body))))
 
@@ -102,6 +160,12 @@
                 (string-trim-both (irregex-match-substring m 2)))
         #f)))
 
+(define (parse-status-line line)
+  (let ([mch (irregex-match ".+?[[:space:]]+(\\d+)[[:space:]]+(.+)"
+			    (string-trim-both line))])
+    (if mch (cons (string->number (irregex-match-substring mch 1))
+		  (irregex-match-substring mch 2)))))
+
 ;;; ->alist
 (define (read-header #!optional (in (current-input-port)))
   (let loop ([line (read-line in)]
@@ -110,7 +174,8 @@
         (reverse! acc)
         (let ([m (parse-line line)])
           (loop (read-line in)
-                (if m (cons m acc) (cons (cons 'status line) acc)))))))
+                (if m (cons m acc)
+		    (cons (cons 'status (parse-status-line line)) acc)))))))
 
 (define (read-body header-alst #!optional (in (current-input-port)))
   (cond   
@@ -136,14 +201,9 @@
 
 (define-record response status header body)
 
-(define (get-response #!optional (in (current-input-port)))
+(define (get-response #!optional (in (current-input-port)) (head? #f))
   (let* ([header-alst (read-header in)]
-         [status (alist-ref 'status header-alst)]
-         [status (string-trim-both status)]
-         [mch (irregex-match  ".+?[[:space:]]+(\\d+)[[:space:]]+(.+)" status)]
-         [status-num (if mch (string->number (irregex-match-substring mch 1)) #f)]
-         [status-sym (if mch (irregex-match-substring mch 2) "")]
-         [status (cons status-num status-sym)]
+         [status (alist-ref 'status header-alst)]         
          [header-alst (alist-delete 'status header-alst)]
-         [body (read-body header-alst in)])
+         [body (if head? "" (read-body header-alst in))])
     (make-response status header-alst body)))
