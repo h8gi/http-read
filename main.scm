@@ -34,8 +34,7 @@
                    (string-append path
                                   "?"
                                   (form-urlencode query #:separator (char-set #\&))))]
-	 [body (if (eq? method 'post)
-		   (form-urlencode query #:separator (char-set #\&))
+	 [body (or (form-urlencode query #:separator (char-set #\&))
 		   "")]
 	 [content-length (string-length body)]
 	 [header (if (eq? method 'post)
@@ -85,12 +84,12 @@
                       (port (current-output-port))
                       method)
   (when (http-read-debug)
-    (printf "~A ~A HTTP/1.1~%" method path-str)
-    (display-header header-alst)
+    (display "> ") (printf "~A ~A HTTP/1.1~%" method path-str)
+    (display "> ") (display-header header-alst)
     (display body))
   (with-output-to-port port
     (lambda ()
-      (printf "~A ~A HTTP/1.1~%" method path-str)
+      (printf "~A ~A HTTP/1.1~%" (string-upcase (->string method)) path-str)
       (display-header header-alst)
       (display body))))
 
