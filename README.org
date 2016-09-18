@@ -5,9 +5,9 @@ If you want a more rich client, user [[http://wiki.call-cc.org/eggref/4/http-cli
 
 ** usage
 
-=(http-read url #!key (header '()) (method 'get) (query '())) -> <response>=
+=(http-read url #!key (header '()) (method 'get) (query '()) proxy) -> <response>=
 
-Header is an alist. Allow methods are get head post put delete.
+Header is an alist. Allowed methods are 'get, 'head, 'post, 'put, 'delete.
 
 =(response-status <response>)=
 
