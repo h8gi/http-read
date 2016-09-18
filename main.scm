@@ -8,6 +8,7 @@
   (let ([host (uri-host uri)]
         [scheme (uri-scheme uri)]
         [port (uri-port uri)])
+    (if (http-read-debug) (printf "connect to: ~A~%" (uri->string uri)))
     (receive (i o)
         (case scheme
           [(http) (tcp-connect host port)]
@@ -37,20 +38,23 @@
                    #!key
                    (header '())
                    (method 'get)
-                   (query '()))
+                   (query '())
+		   (proxy #f))
   (let* ([uri (trim-uri-or-str uri-or-str)]
+	 [proxy (if proxy (trim-uri-or-str proxy) #f)]
 	 [header (add-ua-to-header
-		  (add-host-to-header header uri))])
+		  (if proxy header
+		      (add-host-to-header header uri)))])
     (case method
       [(get head delete)
-       (let ([path (make-request-path uri (append (uri-query uri) query) #f)])
-	 (process-server uri path header "" method))]
+       (let ([path (make-request-path uri (append (uri-query uri) query) proxy)])
+	 (process-server (or proxy uri) path header "" method))]
       [(put post)
-       (let* ([path (make-request-path uri (uri-query uri) #f)]
+       (let* ([path (make-request-path uri (uri-query uri) proxy)]
 	      [body (or (form-urlencode query #:separator (char-set #\&)) "")]
 	      [content-length (string-length body)]
 	      [header (header-update 'content-length content-length header)])
-	 (process-server uri path header body method))]
+	 (process-server (or proxy uri) path header body method))]
       [else (error "method must be (get head delete put post)" method)])))
 
 
