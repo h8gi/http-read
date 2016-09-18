@@ -43,27 +43,33 @@
   (let* ([uri (trim-uri-or-str uri-or-str)]
 	 [proxy (if proxy (trim-uri-or-str proxy) #f)]
 	 [header (add-ua-to-header
+		  ;; if proxy, header doesn't contain host header
 		  (if proxy header
 		      (add-host-to-header header uri)))])
     (case method
       [(get head delete)
-       (let ([path (make-request-path uri (append (uri-query uri) query) proxy)])
+       ;; GET, HEAD, DELETE
+       (let ([path (make-request-path uri
+				      (append (uri-query uri) query)
+				      proxy)])
 	 (process-server (or proxy uri) path header "" method))]
       [(put post)
-       (let* ([path (make-request-path uri (uri-query uri) proxy)]
+       ;; POST, PUT
+       (let* ([path (make-request-path uri
+				       (uri-query uri)
+				       proxy)]
 	      [body (or (form-urlencode query #:separator (char-set #\&)) "")]
 	      [content-length (string-length body)]
 	      [header (header-update 'content-length content-length header)])
 	 (process-server (or proxy uri) path header body method))]
       [else (error "method must be (get head delete put post)" method)])))
 
-
+;;; if proxy absolute, else relative path
 (define (make-request-path uri query proxy)
   (let ([path ((if proxy uri->string uri-path-string) uri)])
     (if (null? query) path
 	(string-append path "?"
 		       (form-urlencode query #:separator (char-set #\&))))))
-
 
 (define (add-host-to-header header abs-uri)
   (cond [(header-ref 'host header) header]
