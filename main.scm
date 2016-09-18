@@ -38,7 +38,9 @@
                    (header '())
                    (method 'get)
                    (query '()))
-  (let ([uri (trim-uri-or-str uri-or-str)])
+  (let* ([uri (trim-uri-or-str uri-or-str)]
+	 [header (add-ua-to-header
+		  (add-host-to-header header uri))])
     ((case method
        [(get head delete) http-get/head/delete]
        [(put post) http-post/put]
@@ -50,14 +52,10 @@
 		       header
 		       method 
 		       query)
-  (let* ([path (uri->string (make-uri #:path (uri-path uri)))]
-	 [path (append-path&query path (uri-query uri))]
+  (let* ([path (relative-path uri (uri-query uri))]
 	 [body (or (form-urlencode query #:separator (char-set #\&)) "")]
 	 [content-length (string-length body)]
-	 [header (add-ua-to-header
-		  (add-host-to-header
-		   (header-update 'content-length content-length header)
-		   uri))])
+	 [header (header-update 'content-length content-length header)])
     (process-server uri path header body method)))
 
 ;;; get, head, delete
@@ -65,16 +63,23 @@
 			      header 
 			      method
 			      query)
-  (let* ([path (uri->string (make-uri #:path (uri-path uri)))]
-         [path  (append-path&query path
-				   (append (uri-query uri) query))]
-	 [header (add-ua-to-header (add-host-to-header header uri))])
+  (let* ([path (relative-path uri (append (uri-query uri) query))])
     (process-server uri path header "" method)))
 
-(define (append-path&query path query)
-  (if (null? query) path
-      (string-append path "?"
-		     (form-urlencode query #:separator (char-set #\&)))))
+
+;;; 絶対path (when proxy)
+(define (absolute-path uri query)
+  (let ([path (uri->string uri)])
+    (if (null? query) path
+	(string-append path "?"
+		       (form-urlencode query #:separator (char-set #\&))))))
+
+;;; uriのhostを除いたパス
+(define (relative-path uri query)
+  (let ([path (uri-path-string uri)])
+    (if (null? query) path
+	(string-append path "?"
+		       (form-urlencode query #:separator (char-set #\&))))))
 
 (define (add-host-to-header header abs-uri)
   (cond [(header-ref 'host header) header]
@@ -192,7 +197,7 @@
   (define (inner)
     (let* ([line (read-line in)]
            [num (string->number line 16)])
-      (when (> num 0)	
+      (when (> num 0)
         (display (read-string num in))
         (read-line in)                  ; eat newline
         (inner))))
