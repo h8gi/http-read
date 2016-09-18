@@ -27,8 +27,8 @@
 	(lambda ()
 	  (get-response in (eq? method 'head)))
 	(lambda ()
-	    (close-input-port in)
-	    (close-output-port out)))))
+	  (close-input-port in)
+	  (close-output-port out)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; all
@@ -40,9 +40,9 @@
                    (query '()))
   (let ([uri (trim-uri-or-str uri-or-str)])
     ((case method
-	[(get head delete) http-get/head/delete]
-	[(put post) http-post/put]
-	[else (error "method must be (get head delete put post)" method)])
+       [(get head delete) http-get/head/delete]
+       [(put post) http-post/put]
+       [else (error "method must be (get head delete put post)" method)])
      uri header method query)))
 
 ;;; put, post
@@ -51,11 +51,7 @@
 		       method 
 		       query)
   (let* ([path (uri->string (make-uri #:path (uri-path uri)))]
-         [path-query (uri-query uri)]
-	 [path (if (null? path-query) path
-                   (string-append path
-                                  "?"
-                                  (form-urlencode path-query #:separator (char-set #\&))))]
+	 [path (append-path&query path (uri-query uri))]
 	 [body (or (form-urlencode query #:separator (char-set #\&)) "")]
 	 [content-length (string-length body)]
 	 [header (add-ua-to-header
@@ -63,19 +59,22 @@
 		   (header-update 'content-length content-length header)
 		   uri))])
     (process-server uri path header body method)))
+
 ;;; get, head, delete
 (define (http-get/head/delete uri
 			      header 
 			      method
 			      query)
   (let* ([path (uri->string (make-uri #:path (uri-path uri)))]
-         [query (append (uri-query uri) query)]
-         [path (if (null? query) path
-                   (string-append path
-                                  "?"
-                                  (form-urlencode query #:separator (char-set #\&))))]
+         [path  (append-path&query path
+				   (append (uri-query uri) query))]
 	 [header (add-ua-to-header (add-host-to-header header uri))])
     (process-server uri path header "" method)))
+
+(define (append-path&query path query)
+  (if (null? query) path
+      (string-append path "?"
+		     (form-urlencode query #:separator (char-set #\&)))))
 
 (define (add-host-to-header header abs-uri)
   (cond [(header-ref 'host header) header]
