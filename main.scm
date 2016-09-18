@@ -1,4 +1,4 @@
-(use tcp6 openssl uri-common)
+(use tcp6 openssl uri-common defstruct)
 (define http-read-debug (make-parameter #f))
 (define user-agent-name "http-read v1.0")
 (set! char-set:uri-unreserved
@@ -193,11 +193,13 @@
         (inner))))
   (with-output-to-string inner))
 
-(define-record response status header body)
+(defstruct response status header body)
 
 (define (get-response #!optional (in (current-input-port)) (head? #f))
   (let* ([header-alst (read-header in)]
          [status (alist-ref 'status header-alst)]         
          [header-alst (alist-delete 'status header-alst)]
          [body (if head? "" (read-body header-alst in))])
-    (make-response status header-alst body)))
+    (make-response #:status status
+		   #:header header-alst
+		   #:body body)))
