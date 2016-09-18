@@ -41,45 +41,25 @@
   (let* ([uri (trim-uri-or-str uri-or-str)]
 	 [header (add-ua-to-header
 		  (add-host-to-header header uri))])
-    ((case method
-       [(get head delete) http-get/head/delete]
-       [(put post) http-post/put]
-       [else (error "method must be (get head delete put post)" method)])
-     uri header method query)))
-
-;;; put, post
-(define (http-post/put uri
-		       header
-		       method 
-		       query)
-  (let* ([path (relative-path uri (uri-query uri))]
-	 [body (or (form-urlencode query #:separator (char-set #\&)) "")]
-	 [content-length (string-length body)]
-	 [header (header-update 'content-length content-length header)])
-    (process-server uri path header body method)))
-
-;;; get, head, delete
-(define (http-get/head/delete uri
-			      header 
-			      method
-			      query)
-  (let* ([path (relative-path uri (append (uri-query uri) query))])
-    (process-server uri path header "" method)))
+    (case method
+      [(get head delete)
+       (let ([path (make-request-path uri (append (uri-query uri) query) #f)])
+	 (process-server uri path header "" method))]
+      [(put post)
+       (let* ([path (make-request-path uri (uri-query uri) #f)]
+	      [body (or (form-urlencode query #:separator (char-set #\&)) "")]
+	      [content-length (string-length body)]
+	      [header (header-update 'content-length content-length header)])
+	 (process-server uri path header body method))]
+      [else (error "method must be (get head delete put post)" method)])))
 
 
-;;; 絶対path (when proxy)
-(define (absolute-path uri query)
-  (let ([path (uri->string uri)])
+(define (make-request-path uri query proxy)
+  (let ([path ((if proxy uri->string uri-path-string) uri)])
     (if (null? query) path
 	(string-append path "?"
 		       (form-urlencode query #:separator (char-set #\&))))))
 
-;;; uriのhostを除いたパス
-(define (relative-path uri query)
-  (let ([path (uri-path-string uri)])
-    (if (null? query) path
-	(string-append path "?"
-		       (form-urlencode query #:separator (char-set #\&))))))
 
 (define (add-host-to-header header abs-uri)
   (cond [(header-ref 'host header) header]
