@@ -102,10 +102,14 @@
 ;;; send request
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define (display-header header-alst #!optional (out (current-output-port)))
+  (define (header-capitalize str-or-sym)
+    (irregex-replace/all '(: bow ($ any)) (->string str-or-sym)
+			 (lambda (m)
+			   (string-upcase (irregex-match-substring m 1)))))
   (with-output-to-port out
     (lambda ()
       (for-each (lambda (lst)
-                  (printf "~A: " (car lst))
+                  (printf "~A: " (header-capitalize (car lst)))
                   (if (list? (cdr lst))
                       (for-each (cut printf "~A " <>) (cdr lst))
                       (printf "~A" (cdr lst)))
