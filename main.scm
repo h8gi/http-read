@@ -60,7 +60,7 @@
 				       proxy)]
 	      [body (or (form-urlencode query #:separator (char-set #\&)) "")]
 	      [content-length (string-length body)]
-	      [header (header-update 'content-length content-length header)])
+	      [header (header-update header 'content-length content-length)])
 	 (process-server (or proxy uri) path header body method))]
       [else (error "method must be (get head delete put post)" method)])))
 
@@ -72,12 +72,12 @@
 		       (form-urlencode query #:separator (char-set #\&))))))
 
 (define (add-host-to-header header abs-uri)
-  (cond [(header-ref 'host header) header]
-	[else (header-update 'host (uri-host abs-uri) header)]))
+  (cond [(header-ref header 'host) header]
+	[else (header-update header 'host (uri-host abs-uri))]))
 
 (define (add-ua-to-header header)
-  (if (header-ref 'user-agent header) header
-      (header-update 'user-agent user-agent-name header)))
+  (if (header-ref header 'user-agent) header
+      (header-update header 'user-agent user-agent-name)))
 
 (define (trim-uri-or-str uri-or-str)
   (let ([uri (if (uri? uri-or-str) uri-or-str
@@ -89,12 +89,12 @@
 (define (uri-path-string uri)
   (uri->string (make-uri #:path (uri-path uri))))
 
-(define (header-ref key header)
+(define (header-ref header key)
   (alist-ref key header (lambda (x y)
 			  (string-ci= (->string x)
 				      (->string y)))))
 
-(define (header-update key value header)
+(define (header-update header key value)
   (alist-update key value header (lambda (x y)
 				   (string-ci= (->string x)
 					       (->string y)))))
