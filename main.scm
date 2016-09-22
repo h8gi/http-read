@@ -1,26 +1,8 @@
-(use tcp6 openssl uri-common defstruct base64 message-digest md5 sha2)
+(use tcp6 openssl uri-common defstruct base64 message-digest md5 sha2 )
 (define http-read-debug (make-parameter #f))
 (define user-agent-name "http-read v1.0")
 (set! char-set:uri-unreserved
       (string->char-set "-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~"))
-
-(define (basic user-id password params-alst)
-  (string-append "Basic " (base64-encode (string-append user-id ":" password))))
-
-(define token '(+ (or (/ "azAZ09")
-		      ("!#$%&'*+-.^_`|~"))))
-
-(define (parse-www-authenticate-header line)
-  (let ([m (irregex-match `(: (=> scheme ,token) (+ space) (=> params (* any))) line)])
-    (if m
-	(let ([scheme (string->symbol (string-downcase (irregex-match-substring m 'scheme)))]
-	      [params (map (lambda (pair-str)
-			     (let* ([pair (irregex-split " *= *" pair-str)]
-				    [param-name (car pair)]
-				    [param-value (string-trim-both (cadr pair) #\")])
-			       (cons param-name param-value)))
-			   (irregex-split " *, *" (irregex-match-substring m 'params)))])
-	  (values scheme params)))))
 
 
 ;;; uri = (uri-reference str)
@@ -54,6 +36,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; all
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; authorization
 (define (http-read uri-or-str
 		   #!key
 		   (header '())
@@ -68,10 +51,10 @@
 					   #:query query
 					   #:proxy proxy)]
 	 [status (car (response-status response))])
-    (cond [(and (= 401 status) user password)
+    (cond [(and (= 401 status) user password) ;if auth failed
 	   (let ([www-authenticate-line (header-ref
-					  (response-header response)
-					  'www-authenticate)])
+					 (response-header response)
+					 'www-authenticate)])
 	     (receive (scheme params) (parse-www-authenticate-header www-authenticate-line)
 	       (http-read-without-auth
 		uri-or-str
@@ -86,6 +69,37 @@
 				 [else (error "Unkonow authorization scheme" scheme)])))))]
 	  [else response])))
 
+(define (parse-www-authenticate-header line)
+  (define token '(+ (or (/ "azAZ09")
+			("!#$%&'*+-.^_`|~"))))
+  (let ([m (irregex-match `(: (=> scheme ,token) (+ space) (=> params (* any))) line)])
+    (if m
+	(let ([scheme (string->symbol (string-downcase (irregex-match-substring m 'scheme)))]
+	      [params (map (lambda (pair-str)
+			     (let* ([pair (irregex-split " *= *" pair-str)]
+				    [param-name (car pair)]
+				    [param-value (string-trim-both (cadr pair) #\")])
+			       (cons param-name param-value)))
+			   (irregex-split " *, *" (irregex-match-substring m 'params)))])
+	  (values scheme params)))))
+
+(define (basic user-id password params-alst)
+  (string-append "Basic " (base64-encode (string-append user-id ":" password))))
+
+;; (define (digest user-id password params-alst)
+;;   (define (parse-algorithm algo)
+;;     (let* ([m (irregex-match "(.*)-sess" algo)]
+;; 	   [algo (if m (irregex-match-substring m 1) algo)])
+;;       (if m )))
+;;   (let ([qop (alist-ref "qop" params-alst)]
+;; 	[algo (alist-ref "algorithm" params-alst)])
+;;     (cond [(or (string=? qop "auth") (string=? qop "auth-int"))
+;; 	   ()]
+;; 	  [])
+;;     (cond [(irregex-match ".*-sess" algo)]
+;; 	  []))  
+;;   (string-append "Digest " ))
+
 (define (http-read-without-auth uri-or-str 
 				#!key
 				(header '())
@@ -94,10 +108,12 @@
 				(proxy #f))
   (let* ([uri (trim-uri-or-str uri-or-str)]
 	 [proxy (if proxy (trim-uri-or-str proxy) #f)]
-	 [header (add-ua-to-header
-		  ;; if proxy, header doesn't contain host header
-		  (if proxy header
-		      (add-host-to-header header uri)))])
+	 [header (header-update
+		  (add-ua-to-header
+		   ;; if proxy, header doesn't contain host header
+		   (if proxy header
+		       (add-host-to-header header uri)))
+		  'connection "close")])
     (case method
       [(get head delete)
        ;; GET, HEAD, DELETE
@@ -114,7 +130,7 @@
 	      [content-length (string-length body)]
 	      [header (header-update header 'content-length content-length)])
 	 (process-server (or proxy uri) path header body method))]
-      [else (error "method must be (get head delete put post)" method)])))
+      [else (error "method must be one of (get head delete put post)" method)])))
 
 ;;; if proxy absolute, else relative path
 (define (make-request-path uri query proxy)
@@ -255,7 +271,7 @@
   (let* ([header-alst (read-header in)]
          [status (alist-ref 'status header-alst)]         
          [header-alst (alist-delete 'status header-alst)]
-         [body (if head? "" (read-body header-alst in))])
+         [body (if head? #f (read-body header-alst in))])
     (make-response #:status status
 		   #:header header-alst
 		   #:body body)))
