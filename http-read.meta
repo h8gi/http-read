@@ -3,4 +3,4 @@
  (synopsis "http-read")
  (license "MIT license http://opensource.org/licenses/mit-license.php")
  (files "main.scm" "http-read.scm" "http-read.setup" "http-read.meta")
- (depends tcp6 openssl uri-common defstruct))
+ (depends tcp6 openssl uri-common defstruct base64 message-digest md5 sha2))

@@ -1,8 +1,28 @@
-(use tcp6 openssl uri-common defstruct)
+(use tcp6 openssl uri-common defstruct base64 message-digest md5 sha2)
 (define http-read-debug (make-parameter #f))
 (define user-agent-name "http-read v1.0")
 (set! char-set:uri-unreserved
-  (string->char-set "-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~"))
+      (string->char-set "-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~"))
+
+(define (basic user-id password params-alst)
+  (string-append "Basic " (base64-encode (string-append user-id ":" password))))
+
+(define token '(+ (or (/ "azAZ09")
+		      ("!#$%&'*+-.^_`|~"))))
+
+(define (parse-www-authenticate-header line)
+  (let ([m (irregex-match `(: (=> scheme ,token) (+ space) (=> params (* any))) line)])
+    (if m
+	(let ([scheme (string->symbol (string-downcase (irregex-match-substring m 'scheme)))]
+	      [params (map (lambda (pair-str)
+			     (let* ([pair (irregex-split " *= *" pair-str)]
+				    [param-name (car pair)]
+				    [param-value (string-trim-both (cadr pair) #\")])
+			       (cons param-name param-value)))
+			   (irregex-split " *, *" (irregex-match-substring m 'params)))])
+	  (values scheme params)))))
+
+
 ;;; uri = (uri-reference str)
 (define (connect-to-server uri)
   (let ([host (uri-host uri)]
@@ -34,12 +54,44 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; all
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define (http-read uri-or-str 
-                   #!key
-                   (header '())
-                   (method 'get)
-                   (query '())
-		   (proxy #f))
+(define (http-read uri-or-str
+		   #!key
+		   (header '())
+		   (method 'get)
+		   (query '())
+		   (proxy #f)
+		   (user #f)
+		   (password #f))
+  (let* ([response (http-read-without-auth uri-or-str
+					   #:header header
+					   #:method method
+					   #:query query
+					   #:proxy proxy)]
+	 [status (car (response-status response))])
+    (cond [(and (= 401 status) user password)
+	   (let ([www-authenticate-line (header-ref
+					  (response-header response)
+					  'www-authenticate)])
+	     (receive (scheme params) (parse-www-authenticate-header www-authenticate-line)
+	       (http-read-without-auth
+		uri-or-str
+		#:method method
+		#:query query
+		#:proxy proxy
+		#:header 
+		(header-update header 'authorization
+			       (case scheme
+				 [(basic)  (basic user password params)]
+				 [(digest) (digest user password params)]
+				 [else (error "Unkonow authorization scheme" scheme)])))))]
+	  [else response])))
+
+(define (http-read-without-auth uri-or-str 
+				#!key
+				(header '())
+				(method 'get)
+				(query '())
+				(proxy #f))
   (let* ([uri (trim-uri-or-str uri-or-str)]
 	 [proxy (if proxy (trim-uri-or-str proxy) #f)]
 	 [header (add-ua-to-header
