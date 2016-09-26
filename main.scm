@@ -1,9 +1,9 @@
-(use tcp6 openssl uri-common defstruct base64 message-digest md5 sha2 )
+(use tcp6 openssl uri-common defstruct base64 message-digest md5 sha2)
+(include "parser.scm")
 (define http-read-debug (make-parameter #f))
 (define user-agent-name "http-read v1.0")
 (set! char-set:uri-unreserved
       (string->char-set "-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~"))
-
 
 ;;; uri = (uri-reference str)
 (define (connect-to-server uri)
@@ -52,53 +52,48 @@
 					   #:proxy proxy)]
 	 [status (car (response-status response))])
     (cond [(and (= 401 status) user password) ;if auth failed
-	   (let ([www-authenticate-line (header-ref
-					 (response-header response)
-					 'www-authenticate)])
-	     (receive (scheme params) (parse-www-authenticate-header www-authenticate-line)
-	       (http-read-without-auth
-		uri-or-str
-		#:method method
-		#:query query
-		#:proxy proxy
-		#:header 
-		(header-update header 'authorization
-			       (case scheme
-				 [(basic)  (basic user password params)]
-				 [(digest) (digest user password params)]
-				 [else (error "Unkonow authorization scheme" scheme)])))))]
+	   (let* ([www-authenticate-line (header-ref
+					  (response-header response)
+					  'www-authenticate)]
+		  [auth-alist (parse-www-authenticate-header www-authenticate-line)])
+	     (pp auth-alist)
+	     (http-read-without-auth
+	      uri-or-str
+	      #:method method
+	      #:query query
+	      #:proxy proxy
+	      #:header 
+	      (header-update header 'authorization
+			     (cond
+			      [(alist-ref 'basic auth-alist)
+			       =>
+			       (cut basic user password <>)]
+			      [(alist-ref 'digest auth-alist)
+			       =>
+			       (cut digest user password <>)]
+			      [else (error "Unkonow authorization scheme" auth-alist)]))))]
 	  [else response])))
 
 (define (parse-www-authenticate-header line)
-  (define token '(+ (or (/ "azAZ09")
-			("!#$%&'*+-.^_`|~"))))
-  (let ([m (irregex-match `(: (=> scheme ,token) (+ space) (=> params (* any))) line)])
-    (if m
-	(let ([scheme (string->symbol (string-downcase (irregex-match-substring m 'scheme)))]
-	      [params (map (lambda (pair-str)
-			     (let* ([pair (irregex-split " *= *" pair-str)]
-				    [param-name (car pair)]
-				    [param-value (string-trim-both (cadr pair) #\")])
-			       (cons param-name param-value)))
-			   (irregex-split " *, *" (irregex-match-substring m 'params)))])
-	  (values scheme params)))))
+  (parse-string line p.www-authenticate))
 
 (define (basic user-id password params-alst)
   (string-append "Basic " (base64-encode (string-append user-id ":" password))))
 
-;; (define (digest user-id password params-alst)
-;;   (define (parse-algorithm algo)
-;;     (let* ([m (irregex-match "(.*)-sess" algo)]
-;; 	   [algo (if m (irregex-match-substring m 1) algo)])
-;;       (if m )))
-;;   (let ([qop (alist-ref "qop" params-alst)]
-;; 	[algo (alist-ref "algorithm" params-alst)])
-;;     (cond [(or (string=? qop "auth") (string=? qop "auth-int"))
-;; 	   ()]
-;; 	  [])
-;;     (cond [(irregex-match ".*-sess" algo)]
-;; 	  []))  
-;;   (string-append "Digest " ))
+(define (digest user-id password params-alst)
+  (let*-values ([(nonce)  (alist-ref "nonce" params-alst string=?)]
+		[(opaque) (alist-ref "opaque" params-alst string=?)]
+		[(algorithm sess?) (parse-algorithm (alist-ref "algorithm" params-alst string=?))]
+		[(qop) (alist-ref "qop" params-alst string=?)]
+		[(auth-int?) (irregex-search "auth-int" qop)])
+    (pp (list nonce opaque algorithm sess? qop auth-int?))
+    (string-append "Digest " "FOO")))
+
+(define (parse-algorithm algorithm)
+  (let ([m (and algorithm (irregex-match "(.+)-sess" algorithm))])
+    (if m
+	(values (irregex-match-substring m 1) #t)
+	(values algorithm #f))))
 
 (define (http-read-without-auth uri-or-str 
 				#!key
@@ -221,16 +216,17 @@
 ;;; read response
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define (parse-line line)
-  (let ([m (irregex-match (irregex "([^:]+): *(.+)" 'i) line)])
+  (let ([m (irregex-match (irregex "([^:]+):\\s*(.+)" 'i) line)])
     (if m (cons (string->symbol (string-downcase (irregex-match-substring m 1)))
                 (string-trim-both (irregex-match-substring m 2)))
         #f)))
 
 (define (parse-status-line line)
-  (let ([mch (irregex-match ".+?[[:space:]]+(\\d+)[[:space:]]+(.+)"
+  (let ([mch (irregex-match ".+?\\s+(\\d+)\\s+(.+)"
 			    (string-trim-both line))])
     (if mch (cons (string->number (irregex-match-substring mch 1))
-		  (irregex-match-substring mch 2)))))
+		  (irregex-match-substring mch 2))
+	#f)))
 
 ;;; ->alist
 (define (read-header #!optional (in (current-input-port)))
