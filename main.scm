@@ -193,6 +193,7 @@
         (inner))))
   (with-output-to-string inner))
 
+;;; response
 (defstruct response status header body)
 
 (define (get-response #!optional (in (current-input-port)) (head? #f))
